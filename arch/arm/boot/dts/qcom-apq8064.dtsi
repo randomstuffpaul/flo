@@ -256,6 +256,9 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			ranges;
+
+			syscon-tcsr = <&tcsr>;
+
 			i2c3: i2c@16280000 {
 				compatible = "qcom,i2c-qup-v1.1.1";
 				reg = <0x16280000 0x1000>;
@@ -263,6 +266,8 @@
 				clocks = <&gcc GSBI3_QUP_CLK>,
 					 <&gcc GSBI3_H_CLK>;
 				clock-names = "core", "iface";
+				#address-cells = <1>;
+				#size-cells = <0>;
 			};
 		};
 
