@@ -201,18 +201,16 @@
 				linux,code = <KEY_POWER>;
 				gpio-key,wakeup;
 			};
-/*			volume_down {
-				label = "Volume Down";
-				gpios = <&tlmm_pinmux 36 GPIO_ACTIVE_LOW>;
-				linux,code = <KEY_VOLUMEDOWN>;
-			};
-
 			volume_up {
 				label = "Volume Up";
-				gpios = <&tlmm_pinmux 15 GPIO_ACTIVE_LOW>;
+				gpios = <&pm8921_gpio 4 GPIO_ACTIVE_LOW>;
 				linux,code = <KEY_VOLUMEUP>;
 			};
-*/
+			volume_down {
+				label = "Volume Down";
+				gpios = <&pm8921_gpio 38 GPIO_ACTIVE_LOW>;
+				linux,code = <KEY_VOLUMEDOWN>;
+			};
 		};
 	};
 };
