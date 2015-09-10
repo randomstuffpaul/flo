@@ -6,6 +6,8 @@
 #include <dt-bindings/clock/qcom,mmcc-msm8960.h>
 #include <dt-bindings/soc/qcom,gsbi.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
+
 / {
 	model = "Qualcomm APQ8064";
 	compatible = "qcom,apq8064";
@@ -124,13 +126,6 @@
 				mux {
 					pins = "gpio8", "gpio9";
 					function = "gsbi3";
-				};
-			};
-
-			uart_pins: uart_pins {
-				mux {
-					pins = "gpio14", "gpio15", "gpio16", "gpio17";
-					function = "gsbi6";
 				};
 			};
 		};
@@ -271,28 +266,6 @@
 			};
 		};
 
-		gsbi6: gsbi@16500000 {
-			status = "disabled";
-			compatible = "qcom,gsbi-v1.0.0";
-			cell-index = <6>;
-			reg = <0x16500000 0x03>;
-			clocks = <&gcc GSBI6_H_CLK>;
-			clock-names = "iface";
-			#address-cells = <1>;
-			#size-cells = <1>;
-			ranges;
-
-			gsbi6_serial: serial@16540000 {
-				compatible = "qcom,msm-uartdm-v1.3", "qcom,msm-uartdm";
-				reg = <0x16540000 0x100>,
-				      <0x16500000 0x03>;
-				interrupts = <0 156 0x0>;
-				clocks = <&gcc GSBI6_UART_CLK>, <&gcc GSBI6_H_CLK>;
-				clock-names = "core", "iface";
-				status = "disabled";
-			};
-		};
-
 		gsbi7: gsbi@16600000 {
 			status = "disabled";
 			compatible = "qcom,gsbi-v1.0.0";
@@ -336,7 +309,6 @@
 				interrupt-controller;
 				#address-cells = <1>;
 				#size-cells = <0>;
-
 				pm8921_gpio: gpio@150 {
 
 					compatible = "qcom,pm8921-gpio";
@@ -361,18 +333,6 @@
 					#gpio-cells = <2>;
 
 				};
-
-				pm8921_mpps: mpps@50 {
-					compatible = "qcom,pm8921-mpp";
-					reg = <0x50>;
-					gpio-controller;
-					#gpio-cells = <2>;
-					interrupts =
-					<128 1>, <129 1>, <130 1>, <131 1>,
-					<132 1>, <133 1>, <134 1>, <135 1>,
-					<136 1>, <137 1>, <138 1>, <139 1>;
-				};
-
 			};
 		};
 
@@ -527,6 +487,14 @@
 		};
 
 		/* Temporary fixed regulator */
+		vsdcc_fixed: vsdcc-regulator {
+			compatible = "regulator-fixed";
+			regulator-name = "SDCC Power";
+			regulator-min-microvolt = <2700000>;
+			regulator-max-microvolt = <2700000>;
+			regulator-always-on;
+		};
+
 		sdcc1bam:dma@12402000{
 			compatible = "qcom,bam-v1.3.0";
 			reg = <0x12402000 0x8000>;
@@ -576,6 +544,7 @@
 				non-removable;
 				cap-sd-highspeed;
 				cap-mmc-highspeed;
+				vmmc-supply = <&vsdcc_fixed>;
 				dmas = <&sdcc1bam 2>, <&sdcc1bam 1>;
 				dma-names = "tx", "rx";
 			};
@@ -594,6 +563,7 @@
 				cap-mmc-highspeed;
 				max-frequency	= <192000000>;
 				no-1-8-v;
+				vmmc-supply = <&vsdcc_fixed>;
 				dmas = <&sdcc3bam 2>, <&sdcc3bam 1>;
 				dma-names = "tx", "rx";
 			};
@@ -611,6 +581,8 @@
 				cap-sd-highspeed;
 				cap-mmc-highspeed;
 				max-frequency	= <48000000>;
+				vmmc-supply = <&vsdcc_fixed>;
+				vqmmc-supply = <&vsdcc_fixed>;
 				dmas = <&sdcc4bam 2>, <&sdcc4bam 1>;
 				dma-names = "tx", "rx";
 				pinctrl-names = "default";
