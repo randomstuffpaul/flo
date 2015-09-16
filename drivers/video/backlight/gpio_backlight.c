@@ -33,11 +33,13 @@ static int gpio_backlight_update_status(struct backlight_device *bl)
 	struct gpio_backlight *gbl = bl_get_data(bl);
 	int brightness = bl->props.brightness;
 
+
 	if (bl->props.power != FB_BLANK_UNBLANK ||
 	    bl->props.fb_blank != FB_BLANK_UNBLANK ||
 	    bl->props.state & (BL_CORE_SUSPENDED | BL_CORE_FBBLANK))
 		brightness = 0;
 
+	printk("JDB: gpio_backlight_update_status! gpio: %i brightness: %i\n", gbl->gpio, brightness);
 	gpio_set_value_cansleep(gbl->gpio,
 				brightness ? gbl->active : !gbl->active);
 
@@ -90,7 +92,7 @@ static int gpio_backlight_probe(struct platform_device *pdev)
 	struct gpio_backlight *gbl;
 	struct device_node *np = pdev->dev.of_node;
 	int ret;
-
+	printk("JDB: gpio_backlight_probe!\n");
 	if (!pdata && !np) {
 		dev_err(&pdev->dev,
 			"failed to find platform data or device tree node.\n");
@@ -138,6 +140,7 @@ static int gpio_backlight_probe(struct platform_device *pdev)
 	backlight_update_status(bl);
 
 	platform_set_drvdata(pdev, bl);
+	printk("JDB: gpio_backlight_probe success!\n");
 	return 0;
 }
 

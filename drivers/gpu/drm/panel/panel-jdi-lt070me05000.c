@@ -90,6 +90,7 @@ static int jdi_panel_init(struct jdi_panel *jdi)
 {
 	struct mipi_dsi_device *dsi = jdi->dsi;
 	int ret;
+	printk("JDB jdi_panel_init!\n");
 
 	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
 
@@ -207,6 +208,7 @@ static int jdi_panel_on(struct jdi_panel *jdi)
 	struct mipi_dsi_device *dsi = jdi->dsi;
 	int ret;
 
+	printk("JDB jdi_panel_on!\n");
 	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
 
 	ret = mipi_dsi_dcs_set_display_on(dsi);
@@ -302,6 +304,7 @@ static int jdi_panel_prepare(struct drm_panel *panel)
 		return 0;
 
 	DRM_DEBUG("prepare\n");
+	printk("JDB jdi_panel_prepare!\n");
 
 	if (jdi->vcc_gpio) {
 		gpiod_set_value(jdi->vcc_gpio, 0);
@@ -378,6 +381,8 @@ static int jdi_panel_enable(struct drm_panel *panel)
 	if (jdi->enabled)
 		return 0;
 
+	printk("JDB: jdi_panel_enable!\n");
+
 	DRM_DEBUG("enable\n");
 
 	if (jdi->backlight) {
@@ -446,6 +451,7 @@ static int jdi_panel_add(struct jdi_panel *jdi)
 	struct device_node *np;
 	int ret;
 
+	printk("JDB: jdi_panel_add!\n");
 	jdi->mode = &default_mode;
 
 	jdi->supply = devm_regulator_get(dev, "power");
@@ -480,7 +486,6 @@ static int jdi_panel_add(struct jdi_panel *jdi)
 	}
 
 	/* we don't have backlight right now, proceed further */
-#if 0
 	np = of_parse_phandle(dev->of_node, "backlight", 0);
 	if (np) {
 		jdi->backlight = of_find_backlight_by_node(np);
@@ -489,7 +494,6 @@ static int jdi_panel_add(struct jdi_panel *jdi)
 		if (!jdi->backlight)
 			return -EPROBE_DEFER;
 	}
-#endif
 
 	drm_panel_init(&jdi->base);
 	jdi->base.funcs = &jdi_panel_funcs;
@@ -521,7 +525,7 @@ static int jdi_panel_probe(struct mipi_dsi_device *dsi)
 {
 	struct jdi_panel *jdi;
 	int ret;
-
+	printk("JDB: jdi_panel_probe!\n");
 	dsi->lanes = 4;
 	dsi->format = MIPI_DSI_FMT_RGB888;
 	dsi->mode_flags = MIPI_DSI_MODE_EOT_PACKET | MIPI_DSI_MODE_VIDEO |
