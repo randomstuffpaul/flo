@@ -5458,11 +5458,9 @@ static void __init_refok alloc_node_mem_map(struct pglist_data *pgdat)
 	if (pgdat == NODE_DATA(0)) {
 		mem_map = NODE_DATA(0)->node_mem_map;
 #if defined(CONFIG_HAVE_MEMBLOCK_NODE_MAP) || defined(CONFIG_FLATMEM)
-		if (page_to_pfn(mem_map) != pgdat->node_start_pfn) {
+		if (page_to_pfn(mem_map) != pgdat->node_start_pfn)
 			mem_map -= offset;
-			VM_BUG_ON(page_to_pfn(mem_map) != pgdat->node_start_pfn);
-		}
-#endif /* CONFIG_HAVE_MEMBLOCK_NODE_MAP || CONFIG_FLATMEM */
+#endif /* CONFIG_HAVE_MEMBLOCK_NODE_MAP */
 	}
 #endif
 #endif /* CONFIG_FLAT_NODE_MEM_MAP */
