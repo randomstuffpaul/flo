@@ -272,5 +272,14 @@
 				vqmmc-supply = <&pm8921_s4>;
 			};
 		};
+
+		reboot_reason: reboot-reason@2a03f65c {
+			compatible		= "linux,reboot-reason-sram";
+			reg			= <0x2A03F65C 0x4>;
+			reason,none		= <0x77665501>;
+			reason,bootloader	= <0x77665500>;
+			reason,recovery		= <0x77665502>;
+			reason,oem		= <0x6f656d00>;
+		};
 	};
 };
