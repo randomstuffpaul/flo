@@ -24,10 +24,13 @@
 #include <linux/of_graph.h>
 #include <linux/regulator/consumer.h>
 #include <linux/spinlock.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
 #include <video/mipi_display.h>
 
 #include "dsi.h"
 #include "dsi.xml.h"
+#include "sfpb.xml.h"
 #include "dsi_cfg.h"
 
 static int dsi_get_version(const void __iomem *base, u32 *major, u32 *minor)
@@ -138,8 +141,18 @@ struct msm_dsi_host {
 	struct work_struct err_work;
 	struct workqueue_struct *workqueue;
 
+	/* DSI 6G TX buffer*/
 	struct drm_gem_object *tx_gem_obj;
+
+	/* DSI v2 TX buffer */
+	void *tx_buf;
+	dma_addr_t tx_buf_paddr;
+
+	int tx_size;
+
 	u8 *rx_buf;
+
+	struct regmap *sfpb;
 
 	struct drm_display_mode *mode;
 
@@ -150,6 +163,7 @@ struct msm_dsi_host {
 	enum mipi_dsi_pixel_format format;
 	unsigned long mode_flags;
 
+	u32 dlane_swap;
 	u32 dma_cmd_ctrl_restore;
 
 	bool registered;
@@ -668,6 +682,12 @@ static int dsi_calc_clk_rate(struct msm_dsi_host *msm_host)
 		for (esc_mhz = 20; esc_mhz >= 5; esc_mhz--) {
 			esc_div = DIV_ROUND_UP(byte_mhz, esc_mhz);
 
+			/*
+			 * TODO: Ideally, we shouldn't know what sort of divider
+			 * is available in mmss_cc, we're just assuming that
+			 * it'll always be a 4 bit divider. Need to come up with
+			 * a better way here.
+			 */
 			if (esc_div >= 1 && esc_div <= 16)
 				break;
 		}
@@ -676,6 +696,9 @@ static int dsi_calc_clk_rate(struct msm_dsi_host *msm_host)
 			return -EINVAL;
 
 		msm_host->esc_clk_rate = msm_host->byte_clk_rate / esc_div;
+
+		DBG("esc=%d, src=%d", msm_host->esc_clk_rate,
+			msm_host->src_clk_rate);
 	}
 
 	return 0;
@@ -828,19 +851,9 @@ static void dsi_ctrl_config(struct msm_dsi_host *msm_host, bool enable,
 	data = DSI_CTRL_CLK_EN;
 
 	DBG("lane number=%d", msm_host->lanes);
-	if (msm_host->lanes == 2) {
-		data |= DSI_CTRL_LANE1 | DSI_CTRL_LANE2;
-		/* swap lanes for 2-lane panel for better performance */
-		dsi_write(msm_host, REG_DSI_LANE_SWAP_CTRL,
-			DSI_LANE_SWAP_CTRL_DLN_SWAP_SEL(LANE_SWAP_1230));
-	} else {
-		/* Take 4 lanes as default */
-		data |= DSI_CTRL_LANE0 | DSI_CTRL_LANE1 | DSI_CTRL_LANE2 |
-			DSI_CTRL_LANE3;
-		/* Do not swap lanes for 4-lane panel */
-		dsi_write(msm_host, REG_DSI_LANE_SWAP_CTRL,
-			DSI_LANE_SWAP_CTRL_DLN_SWAP_SEL(LANE_SWAP_0123));
-	}
+	data |= ((DSI_CTRL_LANE0 << msm_host->lanes) - DSI_CTRL_LANE0);
+	dsi_write(msm_host, REG_DSI_LANE_SWAP_CTRL,
+		DSI_LANE_SWAP_CTRL_DLN_SWAP_SEL(msm_host->dlane_swap));
 
 	if (!(flags & MIPI_DSI_CLOCK_NON_CONTINUOUS))
 		dsi_write(msm_host, REG_DSI_LANE_CTRL,
@@ -909,7 +922,9 @@ static void dsi_sw_reset(struct msm_dsi_host *msm_host)
 
 	dsi_write(msm_host, REG_DSI_RESET, 1);
 	wmb(); /* make sure reset happen */
+	mdelay(100);
 	dsi_write(msm_host, REG_DSI_RESET, 0);
+	wmb();
 }
 
 static void dsi_op_mode_config(struct msm_dsi_host *msm_host,
@@ -979,29 +994,46 @@ static void dsi_wait4video_eng_busy(struct msm_dsi_host *msm_host)
 static int dsi_tx_buf_alloc(struct msm_dsi_host *msm_host, int size)
 {
 	struct drm_device *dev = msm_host->dev;
+	const struct msm_dsi_cfg_handler *cfg_hnd = msm_host->cfg_hnd;
 	int ret;
 	u32 iova;
 
-	mutex_lock(&dev->struct_mutex);
-	msm_host->tx_gem_obj = msm_gem_new(dev, size, MSM_BO_UNCACHED);
-	if (IS_ERR(msm_host->tx_gem_obj)) {
-		ret = PTR_ERR(msm_host->tx_gem_obj);
-		pr_err("%s: failed to allocate gem, %d\n", __func__, ret);
-		msm_host->tx_gem_obj = NULL;
+	if (cfg_hnd->major == MSM_DSI_VER_MAJOR_6G) {
+		mutex_lock(&dev->struct_mutex);
+		msm_host->tx_gem_obj = msm_gem_new(dev, size, MSM_BO_UNCACHED);
+		if (IS_ERR(msm_host->tx_gem_obj)) {
+			ret = PTR_ERR(msm_host->tx_gem_obj);
+			pr_err("%s: failed to allocate gem, %d\n",
+				__func__, ret);
+			msm_host->tx_gem_obj = NULL;
+			mutex_unlock(&dev->struct_mutex);
+			return ret;
+		}
+
+		ret = msm_gem_get_iova_locked(msm_host->tx_gem_obj, 0, &iova);
+		if (ret) {
+			pr_err("%s: failed to get iova, %d\n", __func__, ret);
+			return ret;
+		}
 		mutex_unlock(&dev->struct_mutex);
-		return ret;
-	}
 
-	ret = msm_gem_get_iova_locked(msm_host->tx_gem_obj, 0, &iova);
-	if (ret) {
-		pr_err("%s: failed to get iova, %d\n", __func__, ret);
-		return ret;
-	}
-	mutex_unlock(&dev->struct_mutex);
+		if (iova & 0x07) {
+			pr_err("%s: buf NOT 8 bytes aligned\n", __func__);
+			return -EINVAL;
+		}
 
-	if (iova & 0x07) {
-		pr_err("%s: buf NOT 8 bytes aligned\n", __func__);
-		return -EINVAL;
+		msm_host->tx_size = msm_host->tx_gem_obj->size;
+	} else {
+		msm_host->tx_buf = dma_alloc_coherent(dev->dev, size,
+					&msm_host->tx_buf_paddr, GFP_KERNEL);
+		if (!msm_host->tx_buf) {
+			ret = -ENOMEM;
+			pr_err("%s: failed to allocate tx buf, %d\n",
+				__func__, ret);
+			return ret;
+		}
+
+		msm_host->tx_size = size;
 	}
 
 	return 0;
@@ -1018,14 +1050,19 @@ static void dsi_tx_buf_free(struct msm_dsi_host *msm_host)
 		msm_host->tx_gem_obj = NULL;
 		mutex_unlock(&dev->struct_mutex);
 	}
+
+	if (msm_host->tx_buf)
+		dma_free_coherent(dev->dev, msm_host->tx_size, msm_host->tx_buf,
+			msm_host->tx_buf_paddr);
 }
 
 /*
  * prepare cmd buffer to be txed
  */
-static int dsi_cmd_dma_add(struct drm_gem_object *tx_gem,
-			const struct mipi_dsi_msg *msg)
+static int dsi_cmd_dma_add(struct msm_dsi_host *msm_host,
+			   const struct mipi_dsi_msg *msg)
 {
+	const struct msm_dsi_cfg_handler *cfg_hnd = msm_host->cfg_hnd;
 	struct mipi_dsi_packet packet;
 	int len;
 	int ret;
@@ -1038,17 +1075,20 @@ static int dsi_cmd_dma_add(struct drm_gem_object *tx_gem,
 	}
 	len = (packet.size + 3) & (~0x3);
 
-	if (len > tx_gem->size) {
+	if (len > msm_host->tx_size) {
 		pr_err("%s: packet size is too big\n", __func__);
 		return -EINVAL;
 	}
 
-	data = msm_gem_vaddr(tx_gem);
-
-	if (IS_ERR(data)) {
-		ret = PTR_ERR(data);
-		pr_err("%s: get vaddr failed, %d\n", __func__, ret);
-		return ret;
+	if (cfg_hnd->major == MSM_DSI_VER_MAJOR_6G) {
+		data = msm_gem_vaddr(msm_host->tx_gem_obj);
+		if (IS_ERR(data)) {
+			ret = PTR_ERR(data);
+			pr_err("%s: get vaddr failed, %d\n", __func__, ret);
+			return ret;
+		}
+	} else {
+		data = msm_host->tx_buf;
 	}
 
 	/* MSM specific command format in memory */
@@ -1114,17 +1154,21 @@ static int dsi_long_read_resp(u8 *buf, const struct mipi_dsi_msg *msg)
 	return msg->rx_len;
 }
 
-
 static int dsi_cmd_dma_tx(struct msm_dsi_host *msm_host, int len)
 {
+	const struct msm_dsi_cfg_handler *cfg_hnd = msm_host->cfg_hnd;
 	int ret;
-	u32 iova;
+	u32 dma_base;
 	bool triggered;
 
-	ret = msm_gem_get_iova(msm_host->tx_gem_obj, 0, &iova);
-	if (ret) {
-		pr_err("%s: failed to get iova: %d\n", __func__, ret);
-		return ret;
+	if (cfg_hnd->major == MSM_DSI_VER_MAJOR_6G) {
+		ret = msm_gem_get_iova(msm_host->tx_gem_obj, 0, &dma_base);
+		if (ret) {
+			pr_err("%s: failed to get iova: %d\n", __func__, ret);
+			return ret;
+		}
+	} else {
+		dma_base = msm_host->tx_buf_paddr;
 	}
 
 	reinit_completion(&msm_host->dma_comp);
@@ -1132,7 +1176,7 @@ static int dsi_cmd_dma_tx(struct msm_dsi_host *msm_host, int len)
 	dsi_wait4video_eng_busy(msm_host);
 
 	triggered = msm_dsi_manager_cmd_xfer_trigger(
-						msm_host->id, iova, len);
+						msm_host->id, dma_base, len);
 	if (triggered) {
 		ret = wait_for_completion_timeout(&msm_host->dma_comp,
 					msecs_to_jiffies(200));
@@ -1204,7 +1248,7 @@ static int dsi_cmds2buf_tx(struct msm_dsi_host *msm_host,
 	int bllp_len = msm_host->mode->hdisplay *
 			dsi_get_bpp(msm_host->format) / 8;
 
-	len = dsi_cmd_dma_add(msm_host->tx_gem_obj, msg);
+	len = dsi_cmd_dma_add(msm_host, msg);
 	if (!len) {
 		pr_err("%s: failed to add cmd type = 0x%x\n",
 			__func__,  msg->type);
@@ -1433,12 +1477,13 @@ static int dsi_host_attach(struct mipi_dsi_host *host,
 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
 	int ret;
 
+	if (dsi->lanes > 4 || dsi->channel > 3)
+		return -EINVAL;
+
 	msm_host->channel = dsi->channel;
 	msm_host->lanes = dsi->lanes;
 	msm_host->format = dsi->format;
 	msm_host->mode_flags = dsi->mode_flags;
-
-	WARN_ON(dsi->dev.of_node != msm_host->device_node);
 
 	/* Some gpios defined in panel DT need to be controlled by host */
 	ret = dsi_host_init_panel_gpios(msm_host, &dsi->dev);
@@ -1446,7 +1491,7 @@ static int dsi_host_attach(struct mipi_dsi_host *host,
 		return ret;
 
 	DBG("id=%d", msm_host->id);
-	if (msm_host->dev)
+	if (msm_host->dev && of_drm_find_panel(msm_host->device_node))
 		drm_helper_hpd_irq_event(msm_host->dev);
 
 	return 0;
@@ -1460,7 +1505,7 @@ static int dsi_host_detach(struct mipi_dsi_host *host,
 	msm_host->device_node = NULL;
 
 	DBG("id=%d", msm_host->id);
-	if (msm_host->dev)
+	if (msm_host->dev && of_drm_find_panel(msm_host->device_node))
 		drm_helper_hpd_irq_event(msm_host->dev);
 
 	return 0;
@@ -1488,6 +1533,33 @@ static struct mipi_dsi_host_ops dsi_host_ops = {
 	.transfer = dsi_host_transfer,
 };
 
+static void dsi_parse_dlane_swap(struct msm_dsi_host *msm_host,
+				struct device_node *np)
+{
+	const char *lane_swap;
+
+	lane_swap = of_get_property(np, "qcom,dsi-logical-lane-swap", NULL);
+
+	if (!lane_swap)
+		msm_host->dlane_swap = LANE_SWAP_0123;
+	else if (!strncmp(lane_swap, "3012", 5))
+		msm_host->dlane_swap = LANE_SWAP_3012;
+	else if (!strncmp(lane_swap, "2301", 5))
+		msm_host->dlane_swap = LANE_SWAP_2301;
+	else if (!strncmp(lane_swap, "1230", 5))
+		msm_host->dlane_swap = LANE_SWAP_1230;
+	else if (!strncmp(lane_swap, "0321", 5))
+		msm_host->dlane_swap = LANE_SWAP_0321;
+	else if (!strncmp(lane_swap, "1032", 5))
+		msm_host->dlane_swap = LANE_SWAP_1032;
+	else if (!strncmp(lane_swap, "2103", 5))
+		msm_host->dlane_swap = LANE_SWAP_2103;
+	else if (!strncmp(lane_swap, "3210", 5))
+		msm_host->dlane_swap = LANE_SWAP_3210;
+	else
+		msm_host->dlane_swap = LANE_SWAP_0123;
+}
+
 static int dsi_host_parse_dt(struct msm_dsi_host *msm_host)
 {
 	struct device *dev = &msm_host->pdev->dev;
@@ -1501,6 +1573,8 @@ static int dsi_host_parse_dt(struct msm_dsi_host *msm_host)
 			__func__, ret);
 		return ret;
 	}
+
+	dsi_parse_dlane_swap(msm_host, np);
 
 	/*
 	 * Get the first endpoint node. In our case, dsi has one output port
@@ -1526,6 +1600,16 @@ static int dsi_host_parse_dt(struct msm_dsi_host *msm_host)
 	of_node_put(device_node);
 
 	msm_host->device_node = device_node;
+
+	if (of_property_read_bool(np, "syscon-sfpb")) {
+		msm_host->sfpb = syscon_regmap_lookup_by_phandle(np,
+					"syscon-sfpb");
+		if (IS_ERR(msm_host->sfpb)) {
+			dev_err(dev, "%s: failed to get sfpb regmap\n",
+				__func__);
+			return PTR_ERR(msm_host->sfpb);
+		}
+	}
 
 	return 0;
 }
@@ -1894,11 +1978,12 @@ int msm_dsi_host_cmd_rx(struct mipi_dsi_host *host,
 	return ret;
 }
 
-void msm_dsi_host_cmd_xfer_commit(struct mipi_dsi_host *host, u32 iova, u32 len)
+void msm_dsi_host_cmd_xfer_commit(struct mipi_dsi_host *host, u32 dma_base,
+				  u32 len)
 {
 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
 
-	dsi_write(msm_host, REG_DSI_DMA_BASE, iova);
+	dsi_write(msm_host, REG_DSI_DMA_BASE, dma_base);
 	dsi_write(msm_host, REG_DSI_DMA_LEN, len);
 	dsi_write(msm_host, REG_DSI_TRIG_DMA, 1);
 
@@ -1989,6 +2074,20 @@ int msm_dsi_host_disable(struct mipi_dsi_host *host)
 	return 0;
 }
 
+static void msm_dsi_sfpb_config(struct msm_dsi_host *msm_host, bool enable)
+{
+	enum sfpb_ahb_arb_master_port_en en;
+
+	if (!msm_host->sfpb)
+		return;
+
+	en = enable ? SFPB_MASTER_PORT_ENABLE : SFPB_MASTER_PORT_DISABLE;
+
+	regmap_update_bits(msm_host->sfpb, REG_SFPB_GPREG,
+			SFPB_GPREG_MASTER_PORT_EN__MASK,
+			SFPB_GPREG_MASTER_PORT_EN(en));
+}
+
 int msm_dsi_host_power_on(struct mipi_dsi_host *host)
 {
 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
@@ -2000,6 +2099,8 @@ int msm_dsi_host_power_on(struct mipi_dsi_host *host)
 		DBG("dsi host already on");
 		goto unlock_ret;
 	}
+
+	msm_dsi_sfpb_config(msm_host, true);
 
 	ret = dsi_calc_clk_rate(msm_host);
 	if (ret) {
@@ -2087,6 +2188,8 @@ int msm_dsi_host_power_off(struct mipi_dsi_host *host)
 	dsi_clk_ctrl(msm_host, 0);
 
 	dsi_host_regulator_disable(msm_host);
+
+	msm_dsi_sfpb_config(msm_host, false);
 
 	DBG("-");
 

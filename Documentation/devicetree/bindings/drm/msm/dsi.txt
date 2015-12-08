@@ -13,18 +13,25 @@ Required properties:
 - power-domains: Should be <&mmcc MDSS_GDSC>.
 - clocks: device clocks
   See Documentation/devicetree/bindings/clocks/clock-bindings.txt for details.
-- clock-names: the following clocks are required:
+- clock-names: these vary based on the DSI version. For DSI6G:
   * "bus_clk"
   * "byte_clk"
+  * "byte_clk_src
   * "core_clk"
   * "core_mmss_clk"
   * "iface_clk"
   * "mdp_core_clk"
   * "pixel_clk"
+  * "pixel_clk_src"
+  For DSIv2, we need a few more:
+   * "dsi_clk_src"
+   * "esc_clk_src"
+   * "src_clk"
 - vdd-supply: phandle to vdd regulator device node
 - vddio-supply: phandle to vdd-io regulator device node
 - vdda-supply: phandle to vdda regulator device node
 - qcom,dsi-phy: phandle to DSI PHY device node
+- syscon-sfpb: A phandle to mmss_sfpb syscon node (only for DSIv2)
 
 Optional properties:
 - panel@0: Node of panel connected to this DSI controller.
@@ -44,6 +51,17 @@ Optional properties:
 - port: DSI controller output port. This contains one endpoint subnode, with its
   remote-endpoint set to the phandle of the connected panel's endpoint.
   See Documentation/devicetree/bindings/graph.txt for device graph info.
+- qcom,dsi-logical-lane-swap: Character string to swap logical lane to physical
+  lane mapping. Supported lane mappings:
+  "0123": Logic 0->Phys 0; Logic 1->Phys 1; Logic 2->Phys 2; Logic 3->Phys 3;
+  "3012": Logic 3->Phys 0; Logic 0->Phys 1; Logic 1->Phys 2; Logic 2->Phys 3;
+  "2301": Logic 2->Phys 0; Logic 3->Phys 1; Logic 0->Phys 2; Logic 1->Phys 3;
+  "1230": Logic 1->Phys 0; Logic 2->Phys 1; Logic 3->Phys 2; Logic 0->Phys 3;
+  "0321": Logic 0->Phys 0; Logic 3->Phys 1; Logic 2->Phys 2; Logic 1->Phys 3;
+  "1032": Logic 1->Phys 0; Logic 0->Phys 1; Logic 3->Phys 2; Logic 2->Phys 3;
+  "2103": Logic 2->Phys 0; Logic 1->Phys 1; Logic 0->Phys 2; Logic 3->Phys 3;
+  "3210": Logic 3->Phys 0; Logic 2->Phys 1; Logic 1->Phys 2; Logic 0->Phys 3;
+  Default value is "0123", which means no lane swap.
 
 DSI PHY:
 Required properties:
@@ -51,6 +69,7 @@ Required properties:
   * "qcom,dsi-phy-28nm-hpm"
   * "qcom,dsi-phy-28nm-lp"
   * "qcom,dsi-phy-20nm"
+  * "qcom,dsi-phy-28nm-8960"
 - reg: Physical base address and length of the registers of PLL, PHY and PHY
   regulator
 - reg-names: The names of register regions. The following regions are required:
@@ -129,6 +148,8 @@ Example:
 				remote-endpoint = <&panel_in>;
 			};
 		};
+
+		qcom,dsi-logical-lane-swap = "0123";
 	};
 
 	mdss_dsi_phy0: qcom,mdss_dsi_phy@fd922a00 {

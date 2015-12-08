@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -53,7 +53,8 @@ static void dsi_28nm_phy_regulator_init(struct msm_dsi_phy *phy)
 	dsi_phy_write(base + REG_DSI_28nm_8960_PHY_MISC_REGULATOR_CTRL_1, 1);
 	dsi_phy_write(base + REG_DSI_28nm_8960_PHY_MISC_REGULATOR_CTRL_2, 1);
 	dsi_phy_write(base + REG_DSI_28nm_8960_PHY_MISC_REGULATOR_CTRL_3, 0);
-	dsi_phy_write(base + REG_DSI_28nm_8960_PHY_MISC_REGULATOR_CTRL_4, 0x100);
+	dsi_phy_write(base + REG_DSI_28nm_8960_PHY_MISC_REGULATOR_CTRL_4,
+		0x100);
 }
 
 static void dsi_28nm_phy_regulator_ctrl(struct msm_dsi_phy *phy)
@@ -83,11 +84,12 @@ static void dsi_28nm_phy_calibration(struct msm_dsi_phy *phy)
 	dsi_phy_write(base + REG_DSI_28nm_8960_PHY_MISC_CAL_HW_CFG_0, 0x1);
 
 	dsi_phy_write(base + REG_DSI_28nm_8960_PHY_MISC_CAL_HW_TRIGGER, 0x1);
-	usleep_range(5000, 5000);
+	usleep_range(5000, 6000);
 	dsi_phy_write(base + REG_DSI_28nm_8960_PHY_MISC_CAL_HW_TRIGGER, 0x0);
 
 	do {
-		status = dsi_phy_read(base + REG_DSI_28nm_8960_PHY_MISC_CAL_STATUS);
+		status = dsi_phy_read(base +
+				REG_DSI_28nm_8960_PHY_MISC_CAL_STATUS);
 
 		if (!(status & DSI_28nm_8960_PHY_MISC_CAL_STATUS_CAL_BUSY))
 			break;
@@ -105,9 +107,12 @@ static void dsi_28nm_phy_lane_config(struct msm_dsi_phy *phy)
 		dsi_phy_write(base + REG_DSI_28nm_8960_PHY_LN_CFG_0(i), 0x80);
 		dsi_phy_write(base + REG_DSI_28nm_8960_PHY_LN_CFG_1(i), 0x45);
 		dsi_phy_write(base + REG_DSI_28nm_8960_PHY_LN_CFG_2(i), 0x00);
-		dsi_phy_write(base + REG_DSI_28nm_8960_PHY_LN_TEST_DATAPATH(i), 0x00);
-		dsi_phy_write(base + REG_DSI_28nm_8960_PHY_LN_TEST_STR_0(i), 0x01);
-		dsi_phy_write(base + REG_DSI_28nm_8960_PHY_LN_TEST_STR_1(i), 0x66);
+		dsi_phy_write(base + REG_DSI_28nm_8960_PHY_LN_TEST_DATAPATH(i),
+			0x00);
+		dsi_phy_write(base + REG_DSI_28nm_8960_PHY_LN_TEST_STR_0(i),
+			0x01);
+		dsi_phy_write(base + REG_DSI_28nm_8960_PHY_LN_TEST_STR_1(i),
+			0x66);
 	}
 
 	dsi_phy_write(base + REG_DSI_28nm_8960_PHY_LNCK_CFG_0, 0x40);
@@ -122,7 +127,6 @@ static int dsi_28nm_phy_enable(struct msm_dsi_phy *phy, int src_pll_id,
 		const unsigned long bit_rate, const unsigned long esc_rate)
 {
 	struct msm_dsi_dphy_timing *timing = &phy->timing;
-	int i;
 	void __iomem *base = phy->base;
 
 	DBG("");
@@ -167,7 +171,6 @@ static int dsi_28nm_phy_enable(struct msm_dsi_phy *phy, int src_pll_id,
 static void dsi_28nm_phy_disable(struct msm_dsi_phy *phy)
 {
 	dsi_phy_write(phy->base + REG_DSI_28nm_8960_PHY_CTRL_0, 0x0);
-	//dsi_28nm_phy_regulator_ctrl(phy, false);
 
 	/*
 	 * Wait for the registers writes to complete in order to

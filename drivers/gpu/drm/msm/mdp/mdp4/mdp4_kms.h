@@ -45,6 +45,7 @@ struct mdp4_kms {
 	struct clk *pclk;
 	struct clk *lut_clk;
 	struct clk *axi_clk;
+	struct msm_mmu *mmu;
 
 	struct mdp_irq error_handler;
 
@@ -212,10 +213,11 @@ struct drm_encoder *mdp4_dtv_encoder_init(struct drm_device *dev);
 
 long mdp4_lcdc_round_pixclk(struct drm_encoder *encoder, unsigned long rate);
 struct drm_encoder *mdp4_lcdc_encoder_init(struct drm_device *dev,
-		struct drm_panel *panel);
+		struct device_node *panel_node);
 
 struct drm_connector *mdp4_lvds_connector_init(struct drm_device *dev,
-		struct drm_panel *panel, struct drm_encoder *encoder);
+		struct device_node *panel_node, struct drm_encoder *encoder);
+struct drm_encoder *mdp4_dsi_encoder_init(struct drm_device *dev);
 
 #ifdef CONFIG_COMMON_CLK
 struct clk *mpd4_lvds_pll_init(struct drm_device *dev);

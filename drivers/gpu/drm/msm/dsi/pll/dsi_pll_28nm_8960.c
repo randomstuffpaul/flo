@@ -11,25 +11,24 @@
  * GNU General Public License for more details.
  */
 
-#include <linux/clk.h>
 #include <linux/clk-provider.h>
 
 #include "dsi_pll.h"
 #include "dsi.xml.h"
 
 /*
- * DSI PLL 28nm (8960/A family)- clock diagram (eg: DSI1):
+ * DSI PLL 28nm (8960/A family) - clock diagram (eg: DSI1):
  *
  *
- *			  +------+
- *  dsi0vco_clk ----o-----| DIV1 |---dsi0pllbit (not exposed as clock)
+ *                        +------+
+ *  dsi1vco_clk ----o-----| DIV1 |---dsi1pllbit (not exposed as clock)
  *  F * byte_clk    |     +------+
- *                  |    bit_div (F / 8)
+ *                  | bit clock divider (F / 8)
  *                  |
  *                  |     +------+
  *                  o-----| DIV2 |---dsi0pllbyte---o---> To byte RCG
  *                  |     +------+                 | (sets parent rate)
- *                  |    byte_div (F)              |
+ *                  | byte clock divider (F)       |
  *                  |                              |
  *                  |                              o---> To esc RCG
  *                  |                                (doesn't set parent rate)
@@ -37,7 +36,7 @@
  *                  |     +------+
  *                  o-----| DIV3 |----dsi0pll------o---> To dsi RCG
  *                        +------+                 | (sets parent rate)
- *                      dsi_clk_div (F * magic)    |
+ *                  dsi clock divider (F * magic)  |
  *                                                 |
  *                                                 o---> To pixel rcg
  *                                                  (doesn't set parent rate)
@@ -76,7 +75,7 @@ struct dsi_pll_28nm {
 	struct platform_device *pdev;
 	void __iomem *mmio;
 
-	/* custom byte divider clock */
+	/* custom byte clock divider */
 	struct clk_bytediv *bytediv;
 
 	/* private clocks: */
@@ -93,7 +92,7 @@ struct dsi_pll_28nm {
 #define to_pll_28nm(x)	container_of(x, struct dsi_pll_28nm, base)
 
 static bool pll_28nm_poll_for_ready(struct dsi_pll_28nm *pll_28nm,
-				u32 nb_tries, u32 timeout_us)
+				    int nb_tries, int timeout_us)
 {
 	bool pll_locked = false;
 	u32 val;
@@ -112,16 +111,11 @@ static bool pll_28nm_poll_for_ready(struct dsi_pll_28nm *pll_28nm,
 	return pll_locked;
 }
 
-/* do we have a way to reset A family PLL? */
-static void pll_28nm_software_reset(struct dsi_pll_28nm *pll_28nm)
-{
-}
-
 /*
  * Clock Callbacks
  */
 static int dsi_pll_28nm_clk_set_rate(struct clk_hw *hw, unsigned long rate,
-		unsigned long parent_rate)
+				     unsigned long parent_rate)
 {
 	struct msm_dsi_pll *pll = hw_clk_to_pll(hw);
 	struct dsi_pll_28nm *pll_28nm = to_pll_28nm(pll);
@@ -172,7 +166,7 @@ static int dsi_pll_28nm_clk_is_enabled(struct clk_hw *hw)
 }
 
 static unsigned long dsi_pll_28nm_clk_recalc_rate(struct clk_hw *hw,
-		unsigned long parent_rate)
+						  unsigned long parent_rate)
 {
 	struct msm_dsi_pll *pll = hw_clk_to_pll(hw);
 	struct dsi_pll_28nm *pll_28nm = to_pll_28nm(pll);
@@ -215,6 +209,18 @@ static const struct clk_ops clk_ops_dsi_pll_28nm_vco = {
 	.is_enabled = dsi_pll_28nm_clk_is_enabled,
 };
 
+/*
+ * Custom byte clock divier clk_ops
+ *
+ * This clock is the entry point to configuring the PLL. The user (dsi host)
+ * will set this clock's rate to the desired byte clock rate. The VCO lock
+ * frequency is a multiple of the byte clock rate. The multiplication factor
+ * (shown as F in the diagram above) is a function of the byte clock rate.
+ *
+ * This custom divider clock ensures that its parent (VCO) is set to the
+ * desired rate, and that the byte clock postdivider (POSTDIV2) is configured
+ * accordingly
+ */
 #define to_clk_bytediv(_hw) container_of(_hw, struct clk_bytediv, hw)
 
 static unsigned long clk_bytediv_recalc_rate(struct clk_hw *hw,
@@ -231,13 +237,16 @@ static unsigned long clk_bytediv_recalc_rate(struct clk_hw *hw,
 /* find multiplication factor(wrt byte clock) at which the VCO should be set */
 static unsigned int get_vco_mul_factor(unsigned long byte_clk_rate)
 {
-	unsigned long byte_khz = byte_clk_rate / 1000;
+	unsigned long bit_mhz;
 
-	if (byte_khz < 15625)
+	/* convert to bit clock in Mhz */
+	bit_mhz = (byte_clk_rate * 8) / 1000000;
+
+	if (bit_mhz < 125)
 		return 64;
-	else if (byte_khz < 31250)
+	else if (bit_mhz < 250)
 		return 32;
-	else if (byte_khz < 75000)
+	else if (bit_mhz < 600)
 		return 16;
 	else
 		return 8;
@@ -290,7 +299,7 @@ static int dsi_pll_28nm_enable_seq(struct msm_dsi_pll *pll)
 	void __iomem *base = pll_28nm->mmio;
 	bool locked;
 	unsigned int bit_div, byte_div;
-	u32 max_reads = 1000, timeout_us = 100;
+	int max_reads = 1000, timeout_us = 100;
 	u32 val;
 
 	DBG("id=%d", pll_28nm->id);
@@ -298,7 +307,7 @@ static int dsi_pll_28nm_enable_seq(struct msm_dsi_pll *pll)
 	/*
 	 * before enabling the PLL, configure the bit clock divider since we
 	 * don't expose it as a clock to the outside world
-	 * 1: read back the byte clock divider that should aready be set
+	 * 1: read back the byte clock divider that should already be set
 	 * 2: divide by 8 to get bit clock divider
 	 * 3: write it to POSTDIV1
 	 */
@@ -312,8 +321,6 @@ static int dsi_pll_28nm_enable_seq(struct msm_dsi_pll *pll)
 	pll_write(base + REG_DSI_28nm_8960_PHY_PLL_CTRL_8, val);
 
 	/* enable the PLL */
-	pll_28nm_software_reset(pll_28nm);
-
 	pll_write(base + REG_DSI_28nm_8960_PHY_PLL_CTRL_0,
 			DSI_28nm_8960_PHY_PLL_CTRL_0_ENABLE);
 
@@ -394,33 +401,24 @@ static int dsi_pll_28nm_get_provider(struct msm_dsi_pll *pll,
 static void dsi_pll_28nm_destroy(struct msm_dsi_pll *pll)
 {
 	struct dsi_pll_28nm *pll_28nm = to_pll_28nm(pll);
-	int i;
 
 	msm_dsi_pll_helper_unregister_clks(pll_28nm->pdev,
 					pll_28nm->clks, pll_28nm->num_clks);
-
-	for (i = 0; i < NUM_PROVIDED_CLKS; i++)
-		pll_28nm->provided_clks[i] = NULL;
-
-	pll_28nm->num_clks = 0;
-	pll_28nm->clk_data.clks = NULL;
-	pll_28nm->clk_data.clk_num = 0;
 }
 
 static int pll_28nm_register(struct dsi_pll_28nm *pll_28nm)
 {
-	char clk_name[32], parent[32], vco_name[32];
+	char *clk_name, *parent_name, *vco_name;
 	struct clk_init_data vco_init = {
 		.parent_names = (const char *[]){ "pxo" },
 		.num_parents = 1,
-		.name = vco_name,
 		.ops = &clk_ops_dsi_pll_28nm_vco,
 	};
 	struct device *dev = &pll_28nm->pdev->dev;
 	struct clk **clks = pll_28nm->clks;
 	struct clk **provided_clks = pll_28nm->provided_clks;
 	struct clk_bytediv *bytediv;
-	struct clk_init_data bytediv_init;
+	struct clk_init_data bytediv_init = { };
 	int ret, num = 0;
 
 	DBG("%d", pll_28nm->id);
@@ -429,9 +427,23 @@ static int pll_28nm_register(struct dsi_pll_28nm *pll_28nm)
 	if (!bytediv)
 		return -ENOMEM;
 
+	vco_name = devm_kzalloc(dev, 32, GFP_KERNEL);
+	if (!vco_name)
+		return -ENOMEM;
+
+	parent_name = devm_kzalloc(dev, 32, GFP_KERNEL);
+	if (!parent_name)
+		return -ENOMEM;
+
+	clk_name = devm_kzalloc(dev, 32, GFP_KERNEL);
+	if (!clk_name)
+		return -ENOMEM;
+
 	pll_28nm->bytediv = bytediv;
 
 	snprintf(vco_name, 32, "dsi%dvco_clk", pll_28nm->id);
+	vco_init.name = vco_name;
+
 	pll_28nm->base.clk_hw.init = &vco_init;
 
 	clks[num++] = clk_register(dev, &pll_28nm->base.clk_hw);
@@ -440,14 +452,14 @@ static int pll_28nm_register(struct dsi_pll_28nm *pll_28nm)
 	bytediv->hw.init = &bytediv_init;
 	bytediv->reg = pll_28nm->mmio + REG_DSI_28nm_8960_PHY_PLL_CTRL_9;
 
+	snprintf(parent_name, 32, "dsi%dvco_clk", pll_28nm->id);
+	snprintf(clk_name, 32, "dsi%dpllbyte", pll_28nm->id);
+
 	bytediv_init.name = clk_name;
 	bytediv_init.ops = &clk_bytediv_ops;
 	bytediv_init.flags = CLK_SET_RATE_PARENT;
-	bytediv_init.parent_names = (const char *[]) { parent };
+	bytediv_init.parent_names = (const char * const *) &parent_name;
 	bytediv_init.num_parents = 1;
-
-	snprintf(parent, 32, "dsi%dvco_clk", pll_28nm->id);
-	snprintf(clk_name, 32, "dsi%dpllbyte", pll_28nm->id);
 
 	/* DIV2 */
 	clks[num++] = provided_clks[DSI_BYTE_PLL_CLK] =
@@ -457,7 +469,7 @@ static int pll_28nm_register(struct dsi_pll_28nm *pll_28nm)
 	/* DIV3 */
 	clks[num++] = provided_clks[DSI_PIXEL_PLL_CLK] =
 			clk_register_divider(dev, clk_name,
-				parent, 0, pll_28nm->mmio +
+				parent_name, 0, pll_28nm->mmio +
 				REG_DSI_28nm_8960_PHY_PLL_CTRL_10,
 				0, 8, 0, NULL);
 

@@ -20,14 +20,11 @@ static const char * const dsi_v2_bus_clk_names[] = {
 static const struct msm_dsi_config apq8064_dsi_cfg = {
 	.io_offset = 0,
 	.reg_cfg = {
-		.num = 6,
+		.num = 3,
 		.regs = {
-			{"gdsc", -1, -1, -1, -1},
 			{"vdda", 1200000, 1200000, 100000, 100},
-			{"vdd", 2800000, 2800000, 150000, 100},
 			{"avdd", 3000000, 3000000, 110000, 100},
-			{"iovdd", 1800000, 1800000, 100000, 100},
-			{"vccs", 3300000, 3300000, 150000, 100},
+			{"vddio", 1800000, 1800000, 100000, 100},
 		},
 	},
 	.bus_clk_names = dsi_v2_bus_clk_names,

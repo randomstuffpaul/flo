@@ -174,19 +174,19 @@
 			lvds-vdda-supply = <&pm8921_lvs7>;
 		};
 
-		backlight: backlight{
+/*		backlight: backlight{
 			pinctrl-0 = <&pwm_bl_gpios>;
 			pinctrl-names = "default";
 			compatible = "gpio-backlight";
 			gpios = <&pm8921_gpio 26 GPIO_ACTIVE_HIGH>;
 			default-on;
 		};
-
+*/
 		dsi0: qcom,mdss_dsi@4700000 {
 			status = "okay";
 			vdda-supply = <&pm8921_l2>;/*VDD_MIPI1 to 4*/
 			vdd-supply = <&pm8921_l8>;
-			iovdd-supply = <&pm8921_lvs7>;
+			vddio-supply = <&pm8921_lvs7>;
 			avdd-supply = <&pm8921_l11>;
 			vcss-supply = <&ext_3p3v>;	
 
@@ -211,7 +211,7 @@
 				lvs7-supply = <&pm8921_lvs7>;
 
 				port {
-					panel_in: endpoint {
+					jdi_in: endpoint {
 						remote-endpoint = <&dsi_out>;
 					};
 				};
@@ -219,7 +219,7 @@
 
 			port {
 				dsi_out: endpoint {
-					remote-endpoint = <&panel_in>;
+					remote-endpoint = <&jdi_in>;
 				};
 			};
 		};
@@ -358,14 +358,15 @@
 			pmicintc: pmic@0 {
 				pm8921_gpio: gpio@150 {
 					pinctrl-names = "default";
-					pinctrl-0 = <&wlan_default_gpios &bt_gpios>;
+					pinctrl-0 = <&wlan_default_gpios &bt_gpios
+					&pwm_bl_gpios &pwm_en_gpios &notify_led>;
 
 					pwm_bl_gpios: pwm-bl-gpios {
 						pios {
 							pins = "gpio26";
 							bias-disable;
 							function = "normal";
-							qcom,drive-strength = <1>;
+							qcom,drive-strength = <8>;
 							power-source = <PM8921_GPIO_S4>;
 						};
 					};
@@ -375,7 +376,7 @@
 							pins = "gpio36";
 							bias-disable;
 							function = "normal";
-							qcom,drive-strength = <1>;
+							qcom,drive-strength = <88888888>;
 							power-source = <PM8921_GPIO_S4>;
 						};
 					};
@@ -409,33 +410,6 @@
 				};
 			};
 		};
-
-                qcom,ssbi@c00000 {
-
-                        pmicintc2: pmic@1 {
-
-                                pm8821_mpps: mpps@50 {
-                                        pinctrl-names = "default";
-                                        pinctrl-0 = <&led_mpp>, <&disp_rst>;
-                                        led_mpp:  led-mpp{
-                                                pios {
-                                                        pins = "mpp1";
-                                                        function = "digital";
-                                                        power-source = <PM8921_GPIO_S4>;
-                                                        drive-strength = <PM8821_MPP_VPH>;
-                                                };
-                                        };
-					disp_rst:  disp-rst{
-                                                pios {
-                                                        pins = "mpp2";
-                                                        function = "digital";
-                                                        power-source = <PM8921_GPIO_S4>;
-                                                        drive-strength = <PM8821_MPP_VPH>;
-                                                };
-                                        };
-                                };
-                        };
-                };
 
 		sdcc4_pwrseq:pwrseq {
 			compatible = "mmc-pwrseq-simple";

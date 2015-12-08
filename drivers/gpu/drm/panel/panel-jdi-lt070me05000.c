@@ -99,10 +99,9 @@ static char backlight_control4[] = {0xCE, 0x7D, 0x40, 0x48, 0x56, 0x67, 0x78,
 static int jdi_panel_init(struct jdi_panel *jdi)
 {
 	struct mipi_dsi_device *dsi = jdi->dsi;
-	u8 format;
 	int ret;
 
-	//dsi->mode_flags |= MIPI_DSI_MODE_LPM;
+	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
 
 	ret = mipi_dsi_dcs_soft_reset(dsi);
 	if (ret < 0)
@@ -114,39 +113,19 @@ static int jdi_panel_init(struct jdi_panel *jdi)
 	if (ret < 0)
 		return ret;
 
-#if 0
-	ret = mipi_dsi_dcs_set_column_address(dsi, 0x00, 0xAF);
-	if (ret < 0)
-		return ret;
-
-	ret = mipi_dsi_dcs_set_page_address(dsi, 0x00, 0x7F);
-	if (ret < 0)
-		return ret;
-	mdelay(20);
-
-#else
 	ret = mipi_dsi_dcs_write_buffer(dsi, set_column_addr, sizeof(set_column_addr));
-
-	ret = mipi_dsi_dcs_write_buffer(dsi, set_page_addr, sizeof(set_page_addr));
-#endif
 	mdelay(120);
 
-	//ret = mipi_dsi_dcs_get_pixel_format(dsi, &format);
-	//printk(KERN_ERR "tried to read pixel format, got %d, format %02x\n", ret, format);
+	ret = mipi_dsi_dcs_write_buffer(dsi, set_page_addr, sizeof(set_page_addr));
 
 	ret = mipi_dsi_dcs_set_tear_on(dsi, MIPI_DSI_DCS_TEAR_MODE_VBLANK);
 	if (ret < 0)
 		return ret;
 	mdelay(5);
 
-#if 0
-	ret = mipi_dsi_dcs_write(dsi, MIPI_DCS_SET_TEAR_SCANLINE,
-			(u8[]){ 0x03, 0x00 }, 2);
+	ret = mipi_dsi_generic_write(dsi, tear_scan_line, sizeof(tear_scan_line));
 	if (ret < 0)
 		return ret;
-#else
-	ret = mipi_dsi_generic_write(dsi, tear_scan_line, sizeof(tear_scan_line));
-#endif
 
 	ret = mipi_dsi_dcs_write_buffer(dsi, write_display_brightness, sizeof(write_display_brightness));
 	if (ret < 0)
@@ -175,7 +154,7 @@ static int jdi_panel_init(struct jdi_panel *jdi)
 					sizeof(interface_setting));
 	if (ret < 0)
 		return ret;
-	mdelay(10);
+	mdelay(20);
 
 	backlight_control4[18] = 0x04;
 	backlight_control4[19] = 0x00;
@@ -226,12 +205,6 @@ if(0) {
         if (ret < 0)
                 return ret;
 }
-	ret = mipi_dsi_dcs_set_display_on(dsi);
-	if (ret < 0)
-		return ret;
-
-	mdelay(150);
-
 	return 0;
 }
 
@@ -242,13 +215,12 @@ static int jdi_panel_on(struct jdi_panel *jdi)
 
 	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
 
-#if 0
 	ret = mipi_dsi_dcs_set_display_on(dsi);
 	if (ret < 0)
 		return ret;
 
-	msleep(40);
-#endif
+	msleep(150);
+
 	return 0;
 }
 
