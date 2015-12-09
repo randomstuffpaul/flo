@@ -66,13 +66,13 @@ static inline struct jdi_panel *to_jdi_panel(struct drm_panel *panel)
 
 static char MCAP[2] = {0xB0, 0x00};
 /* static char interface_setting[6] = {0xB3, 0x04, 0x08, 0x00, 0x22, 0x00}; */
-static char interface_setting[] = {0xB3, 0x6F};//, 0xff, 0xff};
+//static char interface_setting[] = {0xB3, 0x6F};//, 0xff, 0xff};
+static char interface_setting[6] = {0xB3, 0x26, 0x08, 0x00, 0x20, 0x00};
+
 static char interface_ID_setting[2] = {0xB4, 0x0C};
 static char DSI_control[3] = {0xB6, 0x3A, 0xD3};
 
 static char tear_scan_line[3] = {0x44, 0x03, 0x00};
-static char set_column_addr[5] = {0x2A, 0x00, 0x00, 0x04, 0xAF};
-static char set_page_addr[5] = {0x2B, 0x00, 0x00, 0x07, 0x7F};
 
 /* for fps control, set fps to 60.32Hz */
 static char LTPS_timing_setting[2] = {0xC6, 0x78};
@@ -109,14 +109,17 @@ static int jdi_panel_init(struct jdi_panel *jdi)
 
 	mdelay(10);
 
-	ret = mipi_dsi_dcs_set_pixel_format(dsi, 0x77);
+	ret = mipi_dsi_dcs_set_pixel_format(dsi, 0x70);
 	if (ret < 0)
 		return ret;
 
-	ret = mipi_dsi_dcs_write_buffer(dsi, set_column_addr, sizeof(set_column_addr));
-	mdelay(120);
+	ret = mipi_dsi_dcs_set_column_address(dsi, 0x0000, 0x04AF);
+	if (ret < 0)
+		return ret;
 
-	ret = mipi_dsi_dcs_write_buffer(dsi, set_page_addr, sizeof(set_page_addr));
+	ret = mipi_dsi_dcs_set_page_address(dsi, 0x0000, 0x077F);
+	if (ret < 0)
+		return ret;
 
 	ret = mipi_dsi_dcs_set_tear_on(dsi, MIPI_DSI_DCS_TEAR_MODE_VBLANK);
 	if (ret < 0)
@@ -139,11 +142,10 @@ static int jdi_panel_init(struct jdi_panel *jdi)
 	if (ret < 0)
 		return ret;
 
-	mdelay(120);
 	ret = mipi_dsi_dcs_exit_sleep_mode(dsi);
 	if (ret < 0)
 		return ret;
-	mdelay(10);
+	mdelay(120);
 
 	ret = mipi_dsi_generic_write(dsi, MCAP, sizeof(MCAP));
 	if (ret < 0)
@@ -219,7 +221,7 @@ static int jdi_panel_on(struct jdi_panel *jdi)
 	if (ret < 0)
 		return ret;
 
-	msleep(150);
+//	msleep(150);
 
 	return 0;
 }
@@ -309,21 +311,6 @@ static int jdi_panel_prepare(struct drm_panel *panel)
 
 	DRM_DEBUG("prepare\n");
 
-	if (jdi->vcc_gpio) {
-		gpiod_set_value(jdi->vcc_gpio, 0);
-		msleep(5);
-	}
-
-	if (jdi->reset_gpio) {
-		gpiod_set_value(jdi->reset_gpio, 0);
-		msleep(5);
-	}
-
-	if (jdi->enable_gpio) {
-		gpiod_set_value(jdi->enable_gpio, 0);
-		msleep(5);
-	}
-
 	ret = regulator_enable(jdi->iovdd);
 	if (ret < 0)
 		return ret;
@@ -335,8 +322,6 @@ static int jdi_panel_prepare(struct drm_panel *panel)
 	ret = regulator_enable(jdi->backlit);
 	if (ret < 0)
 		return ret;
-
-	udelay(100);
 
 	ret = regulator_enable(jdi->lvs7);
 	if (ret < 0)
@@ -350,16 +335,12 @@ static int jdi_panel_prepare(struct drm_panel *panel)
 
 	if (jdi->vcc_gpio) {
 		gpiod_set_value(jdi->vcc_gpio, 1);
-		msleep(20);
+		msleep(10);
 	}
 
 	if (jdi->reset_gpio) {
 		gpiod_set_value(jdi->reset_gpio, 1);
-		msleep(1);
-		gpiod_set_value(jdi->reset_gpio, 0);
-		udelay(50);
-		gpiod_set_value(jdi->reset_gpio, 1);
-		msleep(5);
+		msleep(10);
 	}
 
 	if (jdi->pwm_gpio) {
@@ -372,7 +353,7 @@ static int jdi_panel_prepare(struct drm_panel *panel)
 		msleep(10);
 	}
 
-	msleep(150);
+//	msleep(150);
 
 	ret = jdi_panel_init(jdi);
 	if (ret) {
@@ -451,8 +432,8 @@ static int jdi_panel_get_modes(struct drm_panel *panel)
 
 	drm_mode_probed_add(panel->connector, mode);
 
-	panel->connector->display_info.width_mm = 95;
-	panel->connector->display_info.height_mm = 151;
+//	panel->connector->display_info.width_mm = 95;
+//	panel->connector->display_info.height_mm = 151;
 
 	return 1;
 }
@@ -474,7 +455,7 @@ MODULE_DEVICE_TABLE(of, jdi_of_match);
 static int jdi_panel_add(struct jdi_panel *jdi)
 {
 	struct device *dev= &jdi->dsi->dev;
-	struct device_node *np;
+	//struct device_node *np;
 	int ret;
 
 	jdi->mode = &default_mode;
