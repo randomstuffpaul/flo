@@ -8,7 +8,6 @@
 
 	aliases {
 		serial0 = &gsbi7_serial;
-		serial1 = &gsbi6_serial;
 	};
 
 	chosen {
@@ -78,6 +77,7 @@
 				pm8921_l2: l2 {
 					regulator-min-microvolt = <1200000>;
 					regulator-max-microvolt = <1200000>;
+					regulator-always-on;
 				};
 
 				/* msm_otg-HSUSB_3p3 */
@@ -105,19 +105,29 @@
 				pm8921_l6: l6 {
 					regulator-min-microvolt = <2950000>;
 					regulator-max-microvolt = <2950000>;
+					bias-pull-down;
+				};
+
+				pm8921_l8: l8 {
+					regulator-name = "pm8921_l8";
+					regulator-min-microvolt = <2800000>;
+					regulator-max-microvolt = <2800000>;
 				};
 
 				/* mipi_dsi.1-dsi1_avdd */
 				pm8921_l11: l11 {
+					regulator-name = "pm8921_l11";
 					regulator-min-microvolt = <3000000>;
 					regulator-max-microvolt = <3000000>;
 					bias-pull-down;
+					regulator-always-on;
 				};
 
 				pm8921_l17: l17 {
+					regulator-name = "pm8921_l17";
 					regulator-min-microvolt = <3000000>;
-					regulator-max-microvolt = <3600000>;
-					bias-pull-down;
+					regulator-max-microvolt = <3000000>;
+					regulator-always-on;
 				};
 
 				/* XXX no users on this though? */
@@ -145,6 +155,7 @@
 					bias-pull-down;
 				};
 				pm8921_lvs5: lvs5 {
+					regulator-name = "pm8921_lvs5";
 					bias-pull-down;
 				};
 				pm8921_lvs6: lvs6 {
@@ -155,7 +166,9 @@
 				 * pil_riva-pll_vdd
 				 */
 				pm8921_lvs7: lvs7 {
-					bias-pull-down;
+					//bias-pull-down;
+					regulator-name = "pm8921_lvs7";
+					regulator-boot-on;
 				};
 			};
 		};
@@ -283,9 +296,6 @@
 
 			serial@16540000 {
 				status = "ok";
-
-				pinctrl-names = "default";
-				pinctrl-0 = <&uart_pins>;
 			};
 		};
 
