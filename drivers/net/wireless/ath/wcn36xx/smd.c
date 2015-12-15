@@ -2260,10 +2260,10 @@ static void wcn36xx_smd_rsp_process(struct wcn36xx *wcn, void *buf, size_t len)
 		msg_ind->msg_len = len;
 		memcpy(msg_ind->msg, buf, len);
 
-		mutex_lock(&wcn->hal_ind_mutex);
+		spin_lock(&wcn->hal_ind_lock);
 		list_add_tail(&msg_ind->list, &wcn->hal_ind_queue);
 		queue_work(wcn->hal_ind_wq, &wcn->hal_ind_work);
-		mutex_unlock(&wcn->hal_ind_mutex);
+		spin_unlock(&wcn->hal_ind_lock);
 		wcn36xx_dbg(WCN36XX_DBG_HAL, "indication arrived\n");
 		break;
 	default:
@@ -2277,8 +2277,9 @@ static void wcn36xx_ind_smd_work(struct work_struct *work)
 		container_of(work, struct wcn36xx, hal_ind_work);
 	struct wcn36xx_hal_msg_header *msg_header;
 	struct wcn36xx_hal_ind_msg *hal_ind_msg;
+	unsigned long flags;
 
-	mutex_lock(&wcn->hal_ind_mutex);
+	spin_lock_irqsave(&wcn->hal_ind_lock, flags);
 
 	hal_ind_msg = list_first_entry(&wcn->hal_ind_queue,
 				       struct wcn36xx_hal_ind_msg,
@@ -2310,8 +2311,8 @@ static void wcn36xx_ind_smd_work(struct work_struct *work)
 			      msg_header->msg_type);
 	}
 	list_del(wcn->hal_ind_queue.next);
+	spin_unlock_irqrestore(&wcn->hal_ind_lock, flags);
 	kfree(hal_ind_msg);
-	mutex_unlock(&wcn->hal_ind_mutex);
 }
 int wcn36xx_smd_open(struct wcn36xx *wcn)
 {
@@ -2324,7 +2325,7 @@ int wcn36xx_smd_open(struct wcn36xx *wcn)
 	}
 	INIT_WORK(&wcn->hal_ind_work, wcn36xx_ind_smd_work);
 	INIT_LIST_HEAD(&wcn->hal_ind_queue);
-	mutex_init(&wcn->hal_ind_mutex);
+	spin_lock_init(&wcn->hal_ind_lock);
 
 	ret = wcn->ctrl_ops->open(wcn, wcn36xx_smd_rsp_process);
 	if (ret) {
@@ -2344,5 +2345,4 @@ void wcn36xx_smd_close(struct wcn36xx *wcn)
 {
 	wcn->ctrl_ops->close();
 	destroy_workqueue(wcn->hal_ind_wq);
-	mutex_destroy(&wcn->hal_ind_mutex);
 }
