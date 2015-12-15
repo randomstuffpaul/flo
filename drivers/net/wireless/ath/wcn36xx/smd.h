@@ -51,6 +51,7 @@ struct wcn36xx_hal_ind_msg {
 };
 
 struct wcn36xx;
+struct qcom_smd_channel;
 
 int wcn36xx_smd_open(struct wcn36xx *wcn);
 void wcn36xx_smd_close(struct wcn36xx *wcn);
@@ -130,4 +131,7 @@ int wcn36xx_smd_update_cfg(struct wcn36xx *wcn, u32 cfg_id, u32 value);
 int wcn36xx_smd_set_mc_list(struct wcn36xx *wcn,
 			    struct ieee80211_vif *vif,
 			    struct wcn36xx_hal_rcv_flt_mc_addr_list_type *fp);
+
+int wcn36xx_smd_rsp_process(struct qcom_smd_channel *channel,
+			    const void *buf, size_t len);
 #endif	/* _SMD_H_ */
