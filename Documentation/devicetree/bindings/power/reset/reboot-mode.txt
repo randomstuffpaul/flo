@@ -1,0 +1,41 @@
+Generic reboot mode core map driver
+
+This driver get reboot mode arguments and call the write
+interface to stores the magic value in special register
+or ram . Then the bootloader can read it and take different
+action according to the argument stored.
+
+Required properties:
+- compatible: only support "syscon-reboot-mode" now.
+
+Each mode is represented as a sub-node of reboot_mode:
+
+Subnode required properties:
+- linux,mode: reboot mode command,such as "loader", "recovery", "fastboot".
+- loader,magic: magic number for the mode, this is vendor specific.
+
+Example:
+	reboot_mode {
+		compatible = "syscon-reboot-mode";
+		offset = <0x40>;
+
+		loader {
+			linux,mode = "loader";
+			loader,magic = <BOOT_LOADER>;
+		};
+
+		maskrom {
+			linux,mode = "maskrom";
+			loader,magic = <BOOT_MASKROM>;
+		};
+
+		recovery {
+			linux,mode = "recovery";
+			loader,magic = <BOOT_RECOVERY>;
+		};
+
+		fastboot {
+			linux,mode = "fastboot";
+			loader,magic = <BOOT_FASTBOOT>;
+		};
+        };
