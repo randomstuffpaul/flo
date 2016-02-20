@@ -871,7 +871,7 @@
 		};
 
 		mdp: qcom,mdp@5100000 {
-			compatible = "qcom,mdp";
+			compatible = "qcom,mdp4";
 			reg = <0x05100000 0xf0000>;
 			interrupts = <GIC_SPI 75 0>;
 			connectors = <&dsi0>;
@@ -957,7 +957,7 @@
 		};
 
 		mdp_port1: qcom,iommu@7600000 {
-			compatible = "qcom,iommu";
+			compatible = "qcom,iommu-v0";
 			#iommu-cells = <2>;
 			clock-names =
 				"smmu_pclk",
