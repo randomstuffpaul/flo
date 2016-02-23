@@ -146,8 +146,8 @@
 				/* pwm_power for backlight */
 				l17 {
 					regulator-min-microvolt = <3000000>;
-					regulator-max-microvolt = <3600000>;
-					bias-pull-down;
+					regulator-max-microvolt = <3000000>;
+					regulator-always-on;
 				};
 
 				/* camera, qdsp6 */
