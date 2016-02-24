@@ -640,6 +640,10 @@ static int clk_rcg_pixel_set_rate(struct clk_hw *hw, unsigned long rate,
 	src = ns_to_src(&rcg->s, ns);
 	f.pre_div = ns_to_pre_div(&rcg->p, ns) + 1;
 
+	printk(KERN_ERR "reading back pre_div = %d\n", f.pre_div);
+	/* force pre div to 1*/
+	f.pre_div = 1;
+
 	for (i = 0; i < num_parents; i++) {
 		if (src == rcg->s.parent_map[i].cfg) {
 			f.src = rcg->s.parent_map[i].src;
