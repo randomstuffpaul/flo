@@ -1,0 +1,57 @@
+JDI model LT070ME05000 1200x1920 7" DSI Panel
+
+Required properties:
+- compatible: should be "jdi,lt070me05000"
+- vddp-supply: phandle of the regulator that provides the supply voltage
+  Power IC supply (3-5V)
+- dcdc_en-supply: phandle of the regulator that provides the supply voltage
+  Power IC supply enable, High active
+- vcc-supply: phandle of the regulator that provides the supply voltage
+  IOVCC , power supply for LCM (1.8V)
+- reset-gpios: phandle of gpio for reset line
+  This should be 8mA, gpio can be configured using mux, pinctrl, pinctrl-names
+  XRES, Reset, Low active
+- enable-gpios: phandle of gpio for enable line
+  LED_EN, LED backlight enable, High active
+
+Example:
+
+	vcc_1p8v: regulator-fixed@2 {
+		compatible = "regulator-fixed";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-name = "vcc_1p8v";
+		regulator-type = "voltage";
+		startup-delay-us = <0>;
+		gpio = <&pm8921_gpio 23 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+
+	tlmm_pinmux: pinctrl@800000 {
+
+		dsi_panel_pinctrl: dsi-panel-pinctrl {
+			mux {
+				pins = "gpio54";
+				function = "gpio";
+				bias-pull-up;
+				drive-strength = <8>;
+			};
+		};
+	};
+
+	dsi0: qcom,mdss_dsi@4700000 {
+		panel@0 {
+			compatible = "jdi,lt070me05000";
+			reg = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&dsi_panel_pinctrl>;
+
+			vddp-supply = <&pm8921_l17>;
+			dcdc_en-supply = <&pm8921_lvs7>;
+			vcc-supply = <&vcc_1p8v>;
+
+			reset-gpios = <&tlmm_pinmux 54 0>;
+			enable-gpios = <&pm8921_gpio 36 GPIO_ACTIVE_HIGH>;
+		};
+	};
