@@ -1162,7 +1162,7 @@
 				"dsi_clk_src", "pixel_clk_src";
 
 			syscon-sfpb = <&mmss_sfpb>;
-			qcom,dsi-phy = <&dsi0_phy>;
+			phys = <&dsi0_phy>;
 		};
 
 		dsi0_phy: qcom,mdss_dsi_phy@4700200 {

@@ -289,7 +289,7 @@
 			port {
 				dsi_out: endpoint {
 					remote-endpoint = <&jdi_in>;
-					qcom,data-lane-map = <0 1 2 3>;
+					data-lanes = <0 1 2 3>;
 				};
 			};
 		};
