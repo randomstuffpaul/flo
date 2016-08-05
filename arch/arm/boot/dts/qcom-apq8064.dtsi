@@ -1183,7 +1183,7 @@
 			#iommu-cells = <2>;
 			clock-names =
 				"smmu_pclk",
-				"smmu_clk";
+				"iommu_clk";
 			clocks =
 				<&mmcc SMMU_AHB_CLK>,
 				<&mmcc MDP_AXI_CLK>;
@@ -1199,7 +1199,7 @@
 			#iommu-cells = <2>;
 			clock-names =
 				"smmu_pclk",
-				"smmu_clk";
+				"iommu_clk";
 			clocks =
 				<&mmcc SMMU_AHB_CLK>,
 				<&mmcc MDP_AXI_CLK>;
@@ -1215,7 +1215,7 @@
 			#iommu-cells = <16>;
 			clock-names =
 				"smmu_pclk",
-				"smmu_clk";
+				"iommu_clk";
 			clocks =
 				<&mmcc SMMU_AHB_CLK>,
 				<&mmcc GFX3D_AXI_CLK>;
@@ -1231,7 +1231,7 @@
 			#iommu-cells = <16>;
 			clock-names =
 				"smmu_pclk",
-				"smmu_clk";
+				"iommu_clk";
 			clocks =
 				<&mmcc SMMU_AHB_CLK>,
 				<&mmcc GFX3D_AXI_CLK>;
