@@ -1179,11 +1179,11 @@
 		};
 
 		mdp_port0: qcom,iommu@7500000 {
-			compatible = "qcom,iommu-v0";
+			compatible = "qcom,apq8064-iommu";
 			#iommu-cells = <2>;
 			clock-names =
 				"smmu_pclk",
-				"iommu_clk";
+				"smmu_clk";
 			clocks =
 				<&mmcc SMMU_AHB_CLK>,
 				<&mmcc MDP_AXI_CLK>;
@@ -1191,15 +1191,15 @@
 			interrupts =
 				<GIC_SPI 63 0>,
 				<GIC_SPI 64 0>;
-			ncb = <2>;
+			qcom,ncb = <2>;
 		};
 
 		mdp_port1: qcom,iommu@7600000 {
-			compatible = "qcom,iommu-v0";
+			compatible = "qcom,apq8064-iommu";
 			#iommu-cells = <2>;
 			clock-names =
 				"smmu_pclk",
-				"iommu_clk";
+				"smmu_clk";
 			clocks =
 				<&mmcc SMMU_AHB_CLK>,
 				<&mmcc MDP_AXI_CLK>;
@@ -1207,15 +1207,15 @@
 			interrupts =
 				<GIC_SPI 61 0>,
 				<GIC_SPI 62 0>;
-			ncb = <2>;
+			qcom,ncb = <2>;
 		};
 
 		gfx3d: qcom,iommu@7c00000 {
-			compatible = "qcom,iommu-v0";
+			compatible = "qcom,apq8064-iommu";
 			#iommu-cells = <16>;
 			clock-names =
 				"smmu_pclk",
-				"iommu_clk";
+				"smmu_clk";
 			clocks =
 				<&mmcc SMMU_AHB_CLK>,
 				<&mmcc GFX3D_AXI_CLK>;
@@ -1223,15 +1223,15 @@
 			interrupts =
 				<GIC_SPI 69 0>,
 				<GIC_SPI 70 0>;
-			ncb = <3>;
+			qcom,ncb = <3>;
 		};
 
 		gfx3d1: qcom,iommu@7d00000 {
-			compatible = "qcom,iommu-v0";
+			compatible = "qcom,apq8064-iommu";
 			#iommu-cells = <16>;
 			clock-names =
 				"smmu_pclk",
-				"iommu_clk";
+				"smmu_clk";
 			clocks =
 				<&mmcc SMMU_AHB_CLK>,
 				<&mmcc GFX3D_AXI_CLK>;
@@ -1239,7 +1239,7 @@
 			interrupts =
 				<GIC_SPI 210 0>,
 				<GIC_SPI 211 0>;
-			ncb = <3>;
+			qcom,ncb = <3>;
 		};
 
 		pcie: pci@1b500000 {
